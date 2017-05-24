@@ -1,0 +1,137 @@
+---
+title: "run_analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is the markdown file to complete the course - "Cleaning and getting data". The idea of the assignment is to load the data and then clean the data to generate a tidy data set. 
+
+Checking and installing required packages.
+```{r echo=TRUE,warning=FALSE,message=FALSE}
+required_packages <- c("dplyr","rebus","data.table")
+install_required <- setdiff(required_packages,rownames(installed.packages()))
+if(length(install_required)!=0) {install.packages(install_required)}
+sapply(required_packages,library,character.only=T,quietly=T)
+```
+Downloading the required files 
+```{r Download Files}
+url1 <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+if(!file.exists("assignment_data.zip")){download.file(url1,dest="assignment_data.zip")}
+unzip("assignment_data.zip",overwrite=T)
+```
+After having downloaded the files in the working directory we setup the paths to read the files in the R environment. 
+```{r Setting Path and File Names}
+path_wd <- getwd()
+path_files <- file.path(path_wd,"UCI HAR Dataset")
+list.files(path_files,recursive=T)
+```
+We see there are inertial signal directory in test and train folders. We don't need these files for our analysis here and thus we will remove these files to get a clean folder for our analysis.
+
+```{r Cleaning Data folder}
+if(file.exists(file.path(path_files,"test/Inertial Signals")) | file.exists(file.path(path_files,"train/Inertial Signals")))
+{
+  unlink(file.path(path_files,"test/Inertial Signals"),recursive = T)
+  unlink(file.path(path_files,"train/Inertial Signals"),recursive=T)
+}
+list.files(path_files,recursive=T)
+```
+Now we create the required dataframes for our analysis. Each of the dataframes have to be read from the cleaned out directory. We load each of the text files using the tbl_df function of dplyr package so visualization of each of the elements becomes easier on the user screen.
+```{r Reading the data from the text files}
+activity_label <- tbl_df(read.table(file.path(path_files,"activity_labels.txt"),header=F))
+features <- tbl_df(read.table(file.path(path_files,"features.txt"),header=F))
+Y_test <- tbl_df(read.table(file.path(path_files,"test/y_test.txt"),header=F))
+Y_train <- tbl_df(read.table(file.path(path_files,"train/y_train.txt"),header=F))
+X_test <- tbl_df(read.table(file.path(path_files,"test/X_test.txt"),header = F))
+X_train <- tbl_df(read.table(file.path(path_files,"train/X_train.txt"),header=F))
+subject_train <- tbl_df(read.table(file.path(path_files,"train/subject_train.txt"),header=F))
+subject_test <- tbl_df(read.table(file.path(path_files,"test/subject_test.txt"),header=F))
+```
+We create a list containing the variables we create and check their dimensions to understand the possible relationships between the various variables we have created. 
+```{r Checking the dimensions of the variables}
+variable_list <- list(activity_label,features,Y_test,Y_train,X_test,X_train,subject_train,subject_test)
+names(variable_list) <- c("activity_label","features","Y_test","Y_train","X_test","X_train","subject_train","subject_test")
+t(sapply(variable_list,dim,USE.NAMES = T,simplify = T))
+sapply(variable_list,head,USE.NAMES=T,simplify = T)
+```
+We can see that X_train and X_test are the main datasets it has a 561 columns. 
+Subject_train and Subject_test are the subjects for the experiments the number of rows in test and train are respectively equal to the number in the main datasets mentioned above. Y_train and Y_test are the activity codes which have same number of observations as in main datasets. Activity Labels are the activity code mapped to activity name. Subject Test and Subject Train are the codes of subjects who have performed these activities. Features is the list of measurment performed and the number of observations are equal to the columns in the main datasets. 
+We need to perform following steps to merge and generate a tidy data set:
+1. Map the columns names to the features 
+2. Extract the columns/ features which are measurements on mean and standard deviations
+3. Add the activity codes to the main dataset and then map the descriptive names from the activity_lables
+4. Change the variable labels to generate descriptive names 
+5. Finally create the summary of means and standard deviation based on subject and activitycodes
+
+First we extract the column names from the features dataset which contains the names - mean or standard deviations. For which we use the grep function along with regex created by the rebus packages we installed.
+
+```{r Extracting Columns}
+## Here we use rebus package to generate a regular expression containing mean or std
+regex_mean_std <- zero_or_more(ANY_CHAR)%R%or("mean","std")%R%zero_or_more(ANY_CHAR)
+
+## We print the regex to evaluate the value which is same as the standard regular expression I use rebus here because it becomes easier to generate the regular expression using that the format is ANY_CHAR - any character %R% means followed by or("mean","std") means either mean or std in the text %R% again is followed by then ANY_CHAR we use argument ignore.case=T so we don't have to write regex comprising of caps and small separately
+regex_mean_std
+
+mean_std_cols <- grep(regex_mean_std,features$V2,ignore.case = T)
+## Here we extract the mean and standard deviation features names into features_mean_std dataframe
+features_mean_std <- features[mean_std_cols,]
+## Replacing (,),- and , from the feature names to generate standard variable names
+features_mean_std$V2 <- gsub("\\(|\\)|_","",features_mean_std$V2)
+##Then we convert all the names to lower case and replace mean and std with _STD_ or _MEAN_ to highlight the variables being computed
+features_mean_std$V2 <- tolower(features_mean_std$V2)
+features_mean_std$V2 <- gsub("mean","MEAN",features_mean_std$V2)
+features_mean_std$V2 <- gsub("std","STD",features_mean_std$V2)
+##This will generate additional _ at the end of the string if mean/ std are at the end of the string thus we will remove the final _ from the names using END constant of our rebus package
+features_mean_std$V2 <- gsub("_"%R%END,"",features_mean_std$V2)
+## We check the value of the columns 
+
+features_mean_std$V2
+## Now that we  have clean column names from the data we can use the data. 
+```
+Now that we have the clean column names we can extract the same columns from our main datasets and bind them. 
+```{r Extracting Columns corrosponding to MEAN and STD}
+##Extract the columns which represent the std and mean from the data
+X_test_mean_std <- X_test[,mean_std_cols]
+X_train_mean_std <- X_train[,mean_std_cols]
+##Check the dimensions of the created data frames 
+dim(X_test_mean_std)
+dim(X_train_mean_std)
+##The dimensions of the data_frame are appropriate as we have 86 variables as filtered by us previously
+names(Y_train) <- "Activity_Code"
+names(Y_test) <- "Activity_Code"
+names(subject_test) <- "Subject_Code"
+names(subject_train) <- "Subject_Code"
+names(X_test_mean_std) <- features_mean_std$V2
+names(X_train_mean_std) <- features_mean_std$V2
+X_test_mean_std <- tbl_df(cbind(Y_test,cbind(subject_test,X_test_mean_std)))
+X_train_mean_std <- tbl_df(cbind(Y_train,cbind(subject_train,X_train_mean_std)))
+dim(X_test_mean_std)
+dim(X_train_mean_std)
+```
+Now we merge the activity_label dataset with our datasets to generate the activity names. To do so we use a left join wherein we keep all the values of left dataset and repeat the corrosponding values in right dataset.
+```{r Merge Datasets}
+names(activity_label) <- c("Activity_Code","Activity_Name")
+X_test_joined <- tbl_df(merge(X_test_mean_std,activity_label,by.x="Activity_Code",by.y="Activity_Code",all.X=T))
+X_train_joined <- tbl_df(merge(X_train_mean_std,activity_label,by.x="Activity_Code",by.y="Activity_Code",all.X=T))
+## Now we can combine the Training and Test data using rbind function into a single dataframe
+X_combined_joined <- as.data.frame(rbind(X_train_joined,X_test_joined))
+dim(X_combined_joined)
+##We can see the size of the dataframe is same as the final dataframe 86 columns + 3 generated columns and 7352 + 2947 = 10299 rows - which means all the data has been combined.
+```
+Creation of Tidy Data frame. Here we aggregate the data using the Activity_Name and Subject_Code and generate mean for all the other variables.
+```{r Creation of Tidy Dataset}
+X_combined_joined$Activity_Name <- as.factor(X_combined_joined$Activity_Name)
+X_combined_joined$Subject_Code <- as.factor(X_combined_joined$Subject_Code)
+##We need to mean over the observations thus we exclude 3 columns for mean compuation - Activity_Code, Activity_Name and Subject_Code which are respectively 1st,2nd and Last columns of our joined data frame
+
+Tidy_Data_Set <- aggregate(X_combined_joined[,3:(ncol(X_combined_joined)-1)],by=list(Activity_Name = X_combined_joined$Activity_Name,Subject_Code = X_combined_joined$Subject_Code),mean)
+
+dim(Tidy_Data_Set)
+write.table(Tidy_Data_Set, "tidy.txt", sep="\t")
+write.csv(Tidy_Data_Set,"tidy1.csv",row.names=F)
+```
+Thus we have created a tidy dataset with the mean of all the observations as the final dataframe. This dataframe has been exported in a tab-deliminated text file named Tidy.txt
