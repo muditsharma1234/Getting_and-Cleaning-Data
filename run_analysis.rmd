@@ -131,7 +131,7 @@ X_combined_joined$Subject_Code <- as.factor(X_combined_joined$Subject_Code)
 Tidy_Data_Set <- aggregate(X_combined_joined[,3:(ncol(X_combined_joined)-1)],by=list(Activity_Name = X_combined_joined$Activity_Name,Subject_Code = X_combined_joined$Subject_Code),mean)
 
 dim(Tidy_Data_Set)
-write.table(Tidy_Data_Set, "tidy.txt", sep="\t")
+write.table(Tidy_Data_Set, "tidy.txt", sep="\t",row.names=F)
 write.csv(Tidy_Data_Set,"tidy1.csv",row.names=F)
 ```
 Thus we have created a tidy dataset with the mean of all the observations as the final dataframe. This dataframe has been exported in a tab-deliminated text file named Tidy.txt
