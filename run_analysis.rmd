@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
-This is the markdown file to complete the course - "Cleaning and getting data". The idea of the assignment is to load the data and then clean the data to generate a tidy data set. 
+This is a markdown file to complete the course - "Cleaning and getting data". The idea of the assignment is to load the data and then clean the data to generate a tidy data set. 
 
 Checking and installing required packages.
 ```{r echo=TRUE,warning=FALSE,message=FALSE}
